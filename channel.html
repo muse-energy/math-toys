@@ -1,0 +1,220 @@
+<html>
+<head>
+<title>channel capacity</title>
+<style>
+    canvas {
+        border: 1px solid silver;
+    }
+</style>
+</head>
+<body>
+<label> 0→0 <input type="text" value="0.7" id="value00"></label><br>
+<label> 0→1 <input type="text" value="0.3" id="value01"></label><br>
+<label> 1→0 <input type="text" value="0.3" id="value10"></label><br>
+<label> 1→1 <input type="text" value="0.7" id="value11"></label><br>
+
+<button onclick="buttonClick()">計算</button>
+
+<canvas id="canvas" width="400" height="200">
+</canvas>
+<p>maximizer: <div id="maximizer"></div></p>
+<p>capacity: <div id="capacity"></div></p>
+
+<br>
+
+<label> コードの長さ <input type="text" value="10" id="code_length"></label><br>
+<label> 「0」の確率 <input type="text" value="0.5" id="alpha"></label><br>
+<button onclick="generateCode()">コード生成！</button>
+
+<div id="codes"></div><br>
+
+<label> 「 <input type="text" value="hello" size=100 id="alice_message"></label>」(英小文字orアンダーバー)<br>
+<button onclick="encode()">↓符号化</button><br>
+<label>  <input type="text" value=" " size=100 id="alice_code"></label><br>
+<button onclick="send()">↓送信</button><br>
+<label>  <input type="text" value=" " size=100 id="bob_code"></label><br>
+<button onclick="decode()">↓復号</button><br>
+<label> 「 <input type="text" value=" " size=100 id="bob_message"></label>」<br>
+<p>rate per digit (log_2(27)/(code length)): <div id="rate"></div></p>
+<p>error rate: <div id="error_rate"></div></p>
+
+<br><br>
+
+<p><a href="https://ja.wikipedia.org/wiki/%E3%82%B7%E3%83%A3%E3%83%8E%E3%83%B3%E3%81%AE%E9%80%9A%E4%BF%A1%E8%B7%AF%E7%AC%A6%E5%8F%B7%E5%8C%96%E5%AE%9A%E7%90%86">通信路符号化定理</a>(Wikipedia)</p>
+
+<script>
+let codes = document.getElementById("codes");
+
+inputs = new Array(27);
+for(let i=0;i<27;i++){
+  inputs[i] = document.createElement("input");
+  codes.appendChild(inputs[i])
+}
+
+function generateCode(){
+  let codeLength = document.getElementById("code_length").value;
+  let alpha = document.getElementById("alpha").value;
+  for(let i=0;i<27;i++){
+    let S = "";
+    for(let i=0;i<codeLength;i++){
+      if(Math.random()<alpha){
+        S += "0";
+      }else{
+        S += "1";
+      }
+    }
+    inputs[i].value = S;
+  }
+  document.getElementById("rate").innerText = Math.log2(27)/codeLength;
+}
+
+function encode(){
+  let aliceMessage = document.getElementById("alice_message").value;
+  let aliceCode = ""
+  const alphabet = "abcdefghijklmnopqrstuvwxyz_";
+  for(let i=0;i<aliceMessage.length;i++){
+    console.log(alphabet.indexOf(aliceMessage[i]));
+    aliceCode += inputs[alphabet.indexOf(aliceMessage[i])].value;
+  }
+  document.getElementById("alice_code").value = aliceCode;
+}
+
+function send(){
+  let aliceCode = document.getElementById("alice_code").value;
+  let bobCode = "";
+  for(let i=0; i<aliceCode.length;i++){
+    if(aliceCode[i]=="0"){
+      if(Math.random()<document.getElementById("value00").value){
+        bobCode += "0";
+      }else{
+        bobCode += "1";
+      }
+    }else{
+      if(Math.random()<document.getElementById("value10").value){
+        bobCode += "0";
+      }else{
+        bobCode += "1";
+      }
+    }
+  }
+  document.getElementById("bob_code").value = bobCode;
+}
+
+function decode(){
+  let bobCode = document.getElementById("bob_code").value;
+  let bobMessage = "";
+  let codeLength = document.getElementById("code_length").value;
+  const alphabet = "abcdefghijklmnopqrstuvwxyz_";
+
+  let p00 = document.getElementById("value00").value;
+  let p01 = document.getElementById("value01").value;
+  let p10 = document.getElementById("value10").value;
+  let p11 = document.getElementById("value11").value;
+
+  for(let i=0;i<bobCode.length/codeLength;i++){
+    let nextCode = bobCode.slice(i*codeLength, (i+1)*codeLength);
+    let prob = new Array(27);
+    //確率を計算
+    for(let j=0;j<27;j++){
+      let p = 1;
+      for(let k=0;k<codeLength;k++){
+         let trueCode = inputs[j].value;
+
+         if(trueCode[k]=="0"&&nextCode[k]=="0"){
+            p *= p00; 
+         }
+         if(trueCode[k]=="0"&&nextCode[k]=="1"){
+            p *= p01; 
+         }
+         if(trueCode[k]=="1"&&nextCode[k]=="0"){
+            p *= p10; 
+         }
+         if(trueCode[k]=="1"&&nextCode[k]=="1"){
+            p *= p11;
+         }
+        console.log(p);
+      }
+      prob[j] = p;
+    }
+    //maxの番号を取得
+    let probMax = -1;
+    let maxChar = -1;
+    for(let j=0;j<27;j++){
+      if(probMax<prob[j]){
+        probMax = prob[j];
+        maxChar = j;
+      }
+    }
+    console.log(maxChar);
+    bobMessage += alphabet[maxChar];
+  }
+  document.getElementById("bob_message").value = bobMessage;
+
+  let aliceMessage = document.getElementById("alice_message").value;
+  let correct = 0;
+  for(let i=0;i<aliceMessage.length;i++){
+    if(aliceMessage[i]==bobMessage[i]){
+      correct += 1;
+    }
+  }
+  document.getElementById("error_rate").innerText = 1-correct/aliceMessage.length; 
+}
+</script>
+
+<script>
+function buttonClick(){
+  let p00 = document.getElementById("value00").value;
+  let p01 = document.getElementById("value01").value;
+  let p10 = document.getElementById("value10").value;
+  let p11 = document.getElementById("value11").value;
+
+  function mut_inf(a){
+    let ret = 0;
+    pb0 = a*p00 + (1-a)*p10;
+    pb1 = a*p01 + (1-a)*p11;
+    if(p00>0 && pb0>0){ 
+      ret += a*p00*Math.log2(p00/pb0);
+    }
+    if(p01>0 && pb1>0){ 
+      ret += a*p01*Math.log2(p01/pb1);
+    }
+    if(p10>0 && pb0>0){ 
+      ret += (1-a)*p10*Math.log2(p10/pb0);
+    }
+    if(p11>0 && pb1>0){ 
+      ret += (1-a)*p11*Math.log2(p11/pb1);
+    }
+    return ret;
+  }
+
+  //描画
+  var canvas = document.getElementById("canvas");
+  var c = canvas.getContext("2d");
+  var cx = 0;
+  c.clearRect(0,0,canvas.width, canvas.height);
+  var cy = 100 * mut_inf(0);
+  var capacity = mut_inf(0);
+  var maximizer = 0;
+  var num = 10000;
+  for (let i=0;i<num + 1;i++){
+    var tx = i*canvas.width/num;
+    var ty = canvas.height*mut_inf(i/num);
+    if(capacity<mut_inf(i/num)){
+      capacity = mut_inf(i/num);
+      maximizer = i/num;
+    }
+    c.beginPath();
+    c.moveTo(cx,canvas.height-cy);
+    c.lineTo(tx,canvas.height-ty);
+    c.stroke();
+    cx = tx;
+    cy = ty;
+  }
+  document.getElementById("maximizer").innerText = maximizer;
+  document.getElementById("capacity").innerText = capacity;
+}
+
+</script> 
+
+</body>
+</html>
